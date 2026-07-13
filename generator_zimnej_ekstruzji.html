@@ -1,0 +1,766 @@
+<!DOCTYPE html>
+<!-- cold-extrusion generator · v10 · motor RPM transparency -->
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cold Extrusion · G-code Generator</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0d1417;--bg2:#101b1f;--panel:#152227;--panel2:#1a2a30;
+    --line:#26383f;--line2:#31474f;--ice:#54d1e6;--ice-bright:#93ecf8;
+    --ice-dim:#2c6b78;--amber:#e8a63a;--txt:#dbe8ea;--muted:#7f959c;
+    --muted2:#5d7178;--radius:4px;
+    --z-green:#47c97a;--z-yellow:#e7c33f;--z-red:#e2564f;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{-webkit-text-size-adjust:100%}
+  body{background:radial-gradient(1200px 600px at 85% -10%, #12262c 0%, transparent 60%),var(--bg);
+    color:var(--txt);font-family:'IBM Plex Sans',system-ui,sans-serif;line-height:1.5;
+    min-height:100vh;padding:clamp(14px,3vw,32px)}
+  .wrap{max-width:1180px;margin:0 auto}
+
+  header{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap;
+    border-bottom:1px solid var(--line);padding-bottom:18px;margin-bottom:26px}
+  .brand .eyebrow{font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.28em;
+    text-transform:uppercase;color:var(--ice);opacity:.85}
+  .brand h1{font-family:'Chakra Petch',sans-serif;font-weight:700;font-size:clamp(28px,5vw,44px);
+    letter-spacing:.01em;line-height:1;margin-top:6px}
+  .brand h1 span{color:var(--ice)}
+  .brand .sub{color:var(--muted);font-size:13px;margin-top:8px;max-width:46ch}
+  .head-right{display:flex;flex-direction:column;align-items:flex-end;gap:10px}
+  .lang{display:flex;border:1px solid var(--line2);border-radius:var(--radius);overflow:hidden}
+  .lang button{background:#0c1417;color:var(--muted);border:0;cursor:pointer;
+    font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.1em;padding:6px 12px;transition:background .15s,color .15s}
+  .lang button + button{border-left:1px solid var(--line2)}
+  .lang button[aria-pressed=true]{background:var(--ice);color:#08131a;font-weight:600}
+  .status{display:flex;align-items:center;gap:9px;font-family:'IBM Plex Mono',monospace;font-size:11px;
+    letter-spacing:.12em;text-transform:uppercase;color:var(--amber);border:1px solid #3d3320;background:#1c1810;
+    padding:8px 13px;border-radius:var(--radius);white-space:nowrap}
+  .status .dot{width:8px;height:8px;border-radius:50%;background:var(--amber);
+    box-shadow:0 0 0 0 rgba(232,166,58,.5);animation:pulse 2.4s infinite}
+  @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(232,166,58,.45)}70%{box-shadow:0 0 0 7px rgba(232,166,58,0)}100%{box-shadow:0 0 0 0 rgba(232,166,58,0)}}
+
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:22px;align-items:start}
+  @media(max-width:860px){.grid{grid-template-columns:1fr}}
+  .panel{background:linear-gradient(180deg,var(--panel) 0%,var(--bg2) 100%);
+    border:1px solid var(--line);border-radius:var(--radius);overflow:hidden}
+  .panel > .phead{display:flex;align-items:center;gap:10px;padding:13px 18px;
+    border-bottom:1px solid var(--line);background:var(--panel2)}
+  .phead .idx{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--ice);
+    border:1px solid var(--ice-dim);border-radius:3px;padding:2px 6px;letter-spacing:.05em}
+  .phead h2{font-family:'Chakra Petch',sans-serif;font-weight:600;font-size:14px;
+    letter-spacing:.14em;text-transform:uppercase;color:var(--txt)}
+  .pbody{padding:18px}
+
+  fieldset{border:0;margin-bottom:22px}
+  fieldset:last-child{margin-bottom:0}
+  legend{font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.22em;text-transform:uppercase;
+    color:var(--muted2);margin-bottom:12px;width:100%;border-bottom:1px dashed var(--line);padding-bottom:7px}
+  .field{margin-bottom:15px}
+  .field:last-child{margin-bottom:0}
+  .field > label{display:block;font-size:12.5px;color:var(--muted);margin-bottom:6px;letter-spacing:.02em}
+  .field .hint{color:var(--muted2);font-size:11px;margin-top:5px;font-family:'IBM Plex Mono',monospace}
+
+  input[type=text],input[type=number],select{width:100%;background:#0c1417;border:1px solid var(--line2);
+    color:var(--txt);border-radius:var(--radius);font-family:'IBM Plex Mono',monospace;font-size:14px;
+    padding:10px 12px;outline:none;transition:border-color .15s,box-shadow .15s}
+  select{appearance:none;-webkit-appearance:none;cursor:pointer;
+    background-image:linear-gradient(45deg,transparent 50%,var(--muted) 50%),linear-gradient(135deg,var(--muted) 50%,transparent 50%);
+    background-position:calc(100% - 16px) 50%,calc(100% - 11px) 50%;background-size:5px 5px,5px 5px;background-repeat:no-repeat;padding-right:32px}
+  input:focus,select:focus{border-color:var(--ice);box-shadow:0 0 0 3px rgba(84,209,230,.14)}
+  input[type=number]::-webkit-inner-spin-button{opacity:.4}
+  .row2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .inline{display:flex;gap:8px}
+  .inline input{flex:1}
+  .inline select{width:auto;flex:none;min-width:96px}
+  input[type=range]{-webkit-appearance:none;appearance:none;height:22px;background:transparent;cursor:pointer;padding:0;border:0}
+  input[type=range]:focus{box-shadow:none}
+  input[type=range]::-webkit-slider-runnable-track{height:6px;border-radius:3px;background:var(--rng,var(--line2))}
+  input[type=range]::-moz-range-track{height:6px;border-radius:3px;background:var(--rng,var(--line2))}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;height:16px;border-radius:50%;
+    background:var(--thumb,var(--ice));border:2px solid #08131a;margin-top:-5px;box-shadow:0 0 6px rgba(0,0,0,.4)}
+  input[type=range]::-moz-range-thumb{width:16px;height:16px;border-radius:50%;background:var(--thumb,var(--ice));border:2px solid #08131a}
+
+  .seg{display:flex;flex-wrap:wrap;border:1px solid var(--line2);border-radius:var(--radius);overflow:hidden}
+  .seg button{flex:1 1 30%;min-width:90px;background:#0c1417;color:var(--muted);border:0;cursor:pointer;
+    font-family:'Chakra Petch',sans-serif;font-weight:500;font-size:12.5px;letter-spacing:.04em;
+    padding:10px 6px;transition:background .15s,color .15s;white-space:nowrap}
+  .seg button + button{border-left:1px solid var(--line2)}
+  .seg button[aria-pressed=true]{background:var(--ice);color:#08131a;font-weight:600}
+
+  .toggle{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:11px 0;border-bottom:1px solid var(--line)}
+  .toggle:last-child{border-bottom:0}
+  .toggle .t-label{font-size:13px}
+  .toggle .t-label small{display:block;color:var(--muted2);font-size:11px;font-family:'IBM Plex Mono',monospace;margin-top:2px}
+  .switch{position:relative;width:44px;height:24px;flex:none}
+  .switch input{opacity:0;width:0;height:0;position:absolute}
+  .switch span{position:absolute;inset:0;background:#0c1417;border:1px solid var(--line2);border-radius:20px;cursor:pointer;transition:background .18s,border-color .18s}
+  .switch span::after{content:"";position:absolute;top:2px;left:2px;width:18px;height:18px;border-radius:50%;background:var(--muted);transition:transform .18s,background .18s}
+  .switch input:checked + span{background:rgba(84,209,230,.18);border-color:var(--ice)}
+  .switch input:checked + span::after{transform:translateX(20px);background:var(--ice)}
+  .switch input:disabled + span{opacity:.55;cursor:not-allowed}
+  .hide{display:none !important}
+
+  .testbox{position:relative;border:1px dashed var(--line2);border-radius:var(--radius);
+    padding:18px 12px 12px;background:rgba(84,209,230,.02)}
+  .testcap{position:absolute;top:-7px;left:12px;background:var(--panel);padding:0 7px;
+    font-family:'IBM Plex Mono',monospace;font-size:9.5px;letter-spacing:.22em;text-transform:uppercase;color:var(--muted2)}
+
+  .subhead{font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.18em;text-transform:uppercase;
+    color:var(--muted2);margin:4px 0 10px}
+  .readout{font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:var(--muted);
+    border:1px solid var(--line);border-radius:var(--radius);background:#0b1215;padding:6px 12px;margin-top:14px}
+  .readout div{display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px dashed var(--line)}
+  .readout div:last-child{border-bottom:0}
+  .readout b{color:var(--ice-bright);font-weight:600}
+
+  .monitor{display:flex;align-items:center;gap:16px;padding:14px 16px;border:1px solid var(--line);border-radius:var(--radius);background:#0b1215;margin-bottom:16px}
+  .feed{position:relative;flex:1;height:26px;border-radius:3px;overflow:hidden;background:#0c1417;border:1px solid var(--line2)}
+  .feed .strand{position:absolute;inset:0;background:repeating-linear-gradient(-55deg,transparent 0 10px,rgba(84,209,230,.42) 10px 12px);
+    background-size:22px 100%;animation:feedmove var(--feed-dur,1.4s) linear infinite}
+  .feed.paused .strand{animation-play-state:paused;opacity:.35}
+  .feed.rev .strand{animation-direction:reverse}
+  @keyframes feedmove{from{background-position:0 0}to{background-position:22px 0}}
+  @media(prefers-reduced-motion:reduce){.feed .strand{animation:none}}
+  .feed .nozzle{position:absolute;right:0;top:0;bottom:0;width:20px;background:linear-gradient(90deg,transparent,#0b1215);border-left:2px solid var(--ice)}
+  .mono-read{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--muted);text-align:right;white-space:nowrap}
+  .mono-read b{color:var(--ice-bright);font-weight:600}
+
+  .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:16px}
+  .stat{border:1px solid var(--line);border-radius:var(--radius);padding:11px 12px;background:#0b1215}
+  .stat .k{font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted2)}
+  .stat .v{font-family:'Chakra Petch',sans-serif;font-weight:600;font-size:20px;color:var(--txt);margin-top:3px}
+  .stat .v small{font-size:12px;color:var(--muted);font-weight:400;margin-left:3px}
+
+  .code-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+  .code-head .lbl{font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--muted2)}
+  pre.code{background:#080e10;border:1px solid var(--line);border-radius:var(--radius);font-family:'IBM Plex Mono',monospace;
+    font-size:12.5px;line-height:1.65;color:#b9cfd3;padding:14px 16px;max-height:340px;overflow:auto;white-space:pre}
+  pre.code .c{color:var(--muted2)}
+  pre.code .cmd{color:var(--ice)}
+  pre.code .warn{color:var(--amber)}
+
+  .actions{display:flex;gap:12px;margin-top:16px}
+  .btn{flex:1;font-family:'Chakra Petch',sans-serif;font-weight:600;letter-spacing:.06em;font-size:14px;cursor:pointer;
+    border-radius:var(--radius);padding:13px 16px;transition:transform .08s,filter .15s,background .15s;border:1px solid transparent}
+  .btn:active{transform:translateY(1px)}
+  .btn.primary{background:var(--ice);color:#07141a;border-color:var(--ice)}
+  .btn.primary:hover{filter:brightness(1.08)}
+  .btn.ghost{background:transparent;color:var(--txt);border-color:var(--line2)}
+  .btn.ghost:hover{border-color:var(--ice);color:var(--ice-bright)}
+
+  .note{margin-top:22px;font-size:12px;color:var(--muted);border-left:2px solid var(--amber);padding:2px 0 2px 12px}
+  .note b{color:var(--amber);font-weight:600}
+  footer{margin-top:30px;text-align:center;color:var(--muted2);font-size:11px;font-family:'IBM Plex Mono',monospace;letter-spacing:.06em}
+  ::selection{background:rgba(84,209,230,.28)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="brand">
+      <div class="eyebrow">Marlin · Ender 3</div>
+      <h1 id="t_h1"></h1>
+      <p class="sub" id="t_sub"></p>
+    </div>
+    <div class="head-right">
+      <div class="lang" id="langSeg">
+        <button type="button" data-lang="en" aria-pressed="true">EN</button>
+        <button type="button" data-lang="pl" aria-pressed="false">PL</button>
+      </div>
+      <div class="status"><span class="dot"></span><span id="t_status"></span></div>
+    </div>
+  </header>
+
+  <div class="grid">
+    <!-- PARAMETERS -->
+    <section class="panel">
+      <div class="phead"><span class="idx">01</span><h2 id="t_pParams"></h2></div>
+      <div class="pbody">
+        <fieldset>
+          <legend id="t_legMove"></legend>
+          <div class="field">
+            <label id="t_feedMode"></label>
+            <div id="modeWrap">
+              <div class="seg">
+                <button type="button" data-mode="syr" aria-pressed="true" id="t_modeSyringe"></button>
+              </div>
+              <div class="testbox" style="margin-top:12px">
+                <div class="testcap" id="t_testCap"></div>
+                <div class="seg">
+                  <button type="button" data-mode="cont" aria-pressed="false" id="t_modeCont"></button>
+                  <button type="button" data-mode="cycle" aria-pressed="false" id="t_modeCycle"></button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- CONTINUOUS -->
+          <div id="contFields" class="hide">
+            <div class="row2">
+              <div class="field"><label id="t_totalDist"></label>
+                <input type="number" id="distance" value="100" min="0" step="1">
+                <div class="hint" id="t_hintDist"></div></div>
+              <div class="field"><label id="t_stepLen"></label>
+                <input type="number" id="step" value="5" min="0.1" step="0.5">
+                <div class="hint" id="t_hintStep"></div></div>
+            </div>
+          </div>
+          <!-- CYCLE -->
+          <div id="cycleFields" class="hide">
+            <div class="row2">
+              <div class="field"><label id="t_push"></label>
+                <input type="number" id="push" value="10" min="0" step="0.5">
+                <div class="hint">mm</div></div>
+              <div class="field"><label id="t_pull"></label>
+                <input type="number" id="pull" value="10" min="0" step="0.5">
+                <div class="hint">mm</div></div>
+            </div>
+            <div class="field"><label id="t_cycles"></label>
+              <input type="number" id="cycles" value="10" min="1" step="1"></div>
+          </div>
+
+          <!-- SYRINGE -->
+          <div id="syringeFields">
+            <div class="field">
+              <label id="t_syrSel"></label>
+              <select id="syrSel"></select>
+              <div class="hint" id="t_syrHint"></div>
+            </div>
+            <div class="field">
+              <label id="t_plungerDia"></label>
+              <input type="number" id="dia" value="15.96" min="0.1" step="0.01">
+              <div class="hint">mm</div>
+            </div>
+
+            <div class="subhead" id="t_subDir"></div>
+            <div class="field">
+              <div class="seg" id="dirSeg">
+                <button type="button" data-dir="cw" aria-pressed="true" id="t_dirCW"></button>
+                <button type="button" data-dir="ccw" aria-pressed="false" id="t_dirCCW"></button>
+              </div>
+            </div>
+            <div class="row2">
+              <div class="field"><label id="t_lblCW"></label>
+                <input type="text" id="cwLabel" value="" maxlength="24"></div>
+              <div class="field"><label id="t_lblCCW"></label>
+                <input type="text" id="ccwLabel" value="" maxlength="24"></div>
+            </div>
+            <div class="hint" id="t_dirHint" style="margin-top:-6px;margin-bottom:4px"></div>
+            <div class="field"><label id="t_volume"></label>
+              <div class="inline">
+                <input type="number" id="vol" value="5" min="0" step="0.1">
+                <select id="volUnit"><option value="ml">mL</option><option value="ul">µL</option></select>
+              </div></div>
+            <div class="field"><label id="t_rate"></label>
+              <div class="inline">
+                <input type="range" id="rateSlider" min="0" max="100" step="0.01" value="1">
+                <select id="rateUnit"><option value="mlmin">mL/min</option><option value="ulmin">µL/min</option><option value="uls">µL/s</option></select>
+              </div>
+              <div class="inline" style="margin-top:9px;align-items:baseline">
+                <input type="number" id="rateBox" min="0" step="0.01" value="1" style="flex:none;max-width:130px">
+                <span class="hint" id="rateRange" style="margin-top:0"></span>
+              </div>
+            </div>
+
+            <div class="subhead" id="t_subMech"></div>
+            <div class="row2">
+              <div class="field"><label id="t_lead"></label>
+                <input type="number" id="lead" value="0.7" min="0.1" step="0.1">
+                <div class="hint">mm/rev · M4 ≈ 0.7</div></div>
+              <div class="field"><label id="t_stepsRev"></label>
+                <input type="number" id="stepsRev" value="200" min="1" step="1"></div>
+            </div>
+            <div class="field"><label id="t_micro"></label>
+              <input type="number" id="micro" value="16" min="1" step="1"></div>
+            <div class="field"><label id="t_maxStep"></label>
+              <input type="number" id="maxsteps" value="10000" min="100" step="500">
+              <div class="hint" id="t_maxStepHint"></div></div>
+
+            <div class="toggle" style="border-top:1px solid var(--line);margin-top:6px">
+              <div class="t-label"><span id="t_m92"></span><small id="m92sub"></small></div>
+              <label class="switch"><input type="checkbox" id="m92on" checked><span></span></label>
+            </div>
+
+            <div class="readout" id="syrReadout"></div>
+          </div>
+
+          <div class="field">
+            <label id="t_feedRate"></label>
+            <input type="number" id="feed" value="100" min="1" step="10">
+            <div class="hint" id="feedHint"></div>
+          </div>
+        </fieldset>
+
+        <fieldset>
+          <legend id="t_legCmd"></legend>
+          <div class="toggle">
+            <div class="t-label"><span id="t_allowCold"></span><small id="t_allowColdSub"></small></div>
+            <label class="switch"><input type="checkbox" id="allowCold" checked disabled><span></span></label>
+          </div>
+          <div class="toggle">
+            <div class="t-label"><span id="t_relExt"></span><small id="extModeCmd"></small></div>
+            <label class="switch"><input type="checkbox" id="relative" checked><span></span></label>
+          </div>
+          <div class="toggle">
+            <div class="t-label"><span id="t_wait"></span><small id="t_waitSub"></small></div>
+            <label class="switch"><input type="checkbox" id="wait" checked><span></span></label>
+          </div>
+          <div class="toggle">
+            <div class="t-label"><span id="t_disable"></span><small>M84</small></div>
+            <label class="switch"><input type="checkbox" id="disable" checked><span></span></label>
+          </div>
+        </fieldset>
+
+        <fieldset>
+          <legend id="t_legFile"></legend>
+          <div class="field"><label id="t_fname"></label>
+            <input type="text" id="fname" value="syringe_dispense">
+            <div class="hint" id="t_fnameHint"></div></div>
+        </fieldset>
+      </div>
+    </section>
+
+    <!-- PREVIEW -->
+    <section class="panel">
+      <div class="phead"><span class="idx">02</span><h2 id="t_pPreview"></h2></div>
+      <div class="pbody">
+        <div class="monitor">
+          <div class="feed" id="feedMon"><div class="strand"></div><div class="nozzle"></div></div>
+          <div class="mono-read"><b id="feedMms">1.67</b> mm/s<br><span id="feedDir"></span></div>
+        </div>
+        <div class="stats">
+          <div class="stat"><div class="k" id="stMainK"></div><div class="v" id="stMain"></div></div>
+          <div class="stat"><div class="k" id="t_stTimeK"></div><div class="v" id="stTime"></div></div>
+          <div class="stat"><div class="k" id="t_stLinesK"></div><div class="v" id="stLines"></div></div>
+        </div>
+        <div class="code-head">
+          <span class="lbl" id="t_genGcode"></span>
+          <span class="lbl" id="lineCap"></span>
+        </div>
+        <pre class="code" id="preview"></pre>
+        <div class="actions">
+          <button class="btn primary" id="download"></button>
+          <button class="btn ghost" id="copy"></button>
+        </div>
+        <p class="note"><b id="t_noteWord"></b> <span id="t_noteBody"></span></p>
+      </div>
+    </section>
+  </div>
+  <footer id="t_footer"></footer>
+</div>
+
+<script>
+(function(){
+  const $ = id => document.getElementById(id);
+  let lang='en', mode='syr', dir='cw', rawGcode='';
+  let rateMm3min=1000; // internal dispense rate (mm^3/min), unit-independent
+  const toMm3=(v,u)=>u==='mlmin'?v*1000:u==='uls'?v*60:v;
+  const fromMm3=(m,u)=>u==='mlmin'?m/1000:u==='uls'?m/60:m;
+  const unitLbl=u=>u==='mlmin'?'mL/min':u==='ulmin'?'µL/min':'µL/s';
+
+  // Standard syringe inner diameters (Norm-Ject family; 30/60 mL brand-dependent)
+  const SYR=[
+    {ml:1,  d:4.71},
+    {ml:3,  d:9.83},
+    {ml:5,  d:12.46},
+    {ml:10, d:15.96},
+    {ml:20, d:20.10},
+    {ml:30, d:23.5},
+    {ml:60, d:26.7},
+  ];
+
+  const T={
+    en:{
+      title:'Cold Extrusion · G-code Generator',
+      h1:'Cold <span>extrusion</span>',
+      sub:'G-code generator for feeding filament without heating the nozzle or bed — for motor testing, cleaning, or syringe/paste dispensing.',
+      status:'Heaters off',
+      pParams:'Parameters', legMove:'Movement', feedMode:'Feed mode',
+      modeCont:'Continuous', modeCycle:'Back & forth', modeSyringe:'Syringe',
+      totalDist:'Total distance', hintDist:'mm of filament',
+      stepLen:'Step length', hintStep:'mm per G1 move',
+      push:'Push (forward)', pull:'Pull (back)', cycles:'Cycles',
+      feedRate:'Feed rate',
+      syrSel:'Syringe (standard)', syrHint:'Typical Norm-Ject IDs — verify/measure yours',
+      plungerDia:'Plunger inner Ø',
+      volume:'Volume to dispense', rate:'Dispense rate',
+      subMech:'Drive mechanics',
+      lead:'Lead screw lead', stepsRev:'Motor steps/rev', micro:'Microstepping',
+      m92:'Set E steps/mm (M92)',
+      roArea:'Barrel area', roTravel:'Plunger travel', roRev:'Screw revolutions', roSteps:'E steps/mm',
+      subDir:'Direction', dirCW:'↻ CW', dirCCW:'↺ CCW',
+      lblCW:'↻ CW label', lblCCW:'↺ CCW label', lblPh:'e.g. dispense',
+      dirHint:'One direction dispenses, the other draws in — which is which depends on your wiring. Run a short move, watch the plunger, then label each direction. CW = positive E, CCW = negative E.',
+      roDir:'Active direction',
+      maxStep:'Max step rate', maxStepHint:'steps/s — firmware / motor limit',
+      maxWord:'max', roMax:'Max rate', roFeed:'Feed (linear)',
+      uStep:'µsteps/s', full:'full/s', rpm:'RPM', roMotor:'Motor speed',
+      legCmd:'Commands',
+      allowCold:'Allow cold extrusion', allowColdSub:'M302 P1 — without it Marlin blocks the move',
+      relExt:'Relative extrusion', extRel:'M83 (on) · M82 (off = absolute)', extAbs:'M82 (on = absolute) · M83 = relative',
+      wait:'Wait for moves to finish', waitSub:'M400 at end of file',
+      disable:'Disable motors at end',
+      legFile:'File', fname:'File name', fnameHint:'.gcode is added automatically',
+      pPreview:'Preview',
+      dirPush:'push →', dirBoth:'push ⇄ pull', dirDisp:'dispense →',
+      testCap:'just motor testing',
+      stNetK:'Net filament', stVolK:'Volume', stTimeK:'Est. time', stLinesK:'Lines',
+      genGcode:'Generated G-code', eMoves:n=>n+' E moves',
+      download:'Download .gcode', copy:'Copy', copied:'Copied ✓', copyErr:'Copy failed',
+      noteWord:'Note:',
+      noteBody:'cold extrusion strains the motor and feed screw — use low speeds. For syringe mode, calibrate E so that E1 = 1 mm of plunger travel (use the M92 value above).',
+      footer:'G-code generator · cold extrusion & syringe · Marlin / Ender 3',
+      defaultName:'cold_extrusion', syrName:'syringe_dispense', custom:'Custom…'
+    },
+    pl:{
+      title:'Zimna ekstruzja · Generator G-code',
+      h1:'Zimna <span>ekstruzja</span>',
+      sub:'Generator G-code do podawania filamentu bez grzania dyszy i stołu — do testu silnika, czyszczenia lub podawania ze strzykawki / past.',
+      status:'Grzałki wyłączone',
+      pParams:'Parametry', legMove:'Ruch', feedMode:'Tryb podawania',
+      modeCont:'Ciągły', modeCycle:'Tam i z powr.', modeSyringe:'Strzykawka',
+      totalDist:'Całkowity dystans', hintDist:'mm filamentu',
+      stepLen:'Długość kroku', hintStep:'mm na jeden ruch G1',
+      push:'Wysuw (naprzód)', pull:'Cofanie (wstecz)', cycles:'Liczba cykli',
+      feedRate:'Prędkość podawania',
+      syrSel:'Strzykawka (standard)', syrHint:'Typowe średnice Norm-Ject — zweryfikuj/zmierz swoją',
+      plungerDia:'Śr. wewn. tłoka',
+      volume:'Objętość do podania', rate:'Prędkość podawania',
+      subMech:'Mechanika napędu',
+      lead:'Skok śruby', stepsRev:'Kroki silnika/obr.', micro:'Mikrokroki',
+      m92:'Ustaw kroki E/mm (M92)',
+      roArea:'Pole cylindra', roTravel:'Przesuw tłoka', roRev:'Obroty śruby', roSteps:'Kroki E/mm',
+      subDir:'Kierunek', dirCW:'↻ CW', dirCCW:'↺ CCW',
+      lblCW:'Etykieta ↻ CW', lblCCW:'Etykieta ↺ CCW', lblPh:'np. wytłaczanie',
+      dirHint:'Jeden kierunek wytłacza, drugi nabiera — który jest który, zależy od okablowania. Uruchom krótki ruch, zobacz jak przesuwa się tłok i przypisz etykiety. CW = E dodatnie, CCW = E ujemne.',
+      roDir:'Aktywny kierunek',
+      maxStep:'Maks. kroki/s', maxStepHint:'kroków/s — limit firmware / silnika',
+      maxWord:'maks.', roMax:'Maks. prędkość', roFeed:'Feed (liniowy)',
+      uStep:'µkroków/s', full:'pełnych/s', rpm:'obr/min', roMotor:'Obroty silnika',
+      legCmd:'Komendy',
+      allowCold:'Zezwól na zimną ekstruzję', allowColdSub:'M302 P1 — bez tego Marlin zablokuje ruch',
+      relExt:'Ekstruzja względna', extRel:'M83 (wł.) · M82 (wył. = bezwzględna)', extAbs:'M82 (wł. = bezwzględna) · M83 = względna',
+      wait:'Czekaj na zakończenie ruchów', waitSub:'M400 na końcu pliku',
+      disable:'Wyłącz silniki na końcu',
+      legFile:'Plik', fname:'Nazwa pliku', fnameHint:'.gcode zostanie dodane automatycznie',
+      pPreview:'Podgląd',
+      dirPush:'wysuw →', dirBoth:'wysuw ⇄ cofanie', dirDisp:'podawanie →',
+      testCap:'tylko test silnika',
+      stNetK:'Filament netto', stVolK:'Objętość', stTimeK:'Szac. czas', stLinesK:'Linie',
+      genGcode:'Wygenerowany G-code', eMoves:n=>n+' ruchów E',
+      download:'Pobierz .gcode', copy:'Kopiuj', copied:'Skopiowano ✓', copyErr:'Błąd kopiowania',
+      noteWord:'Uwaga:',
+      noteBody:'zimna ekstruzja obciąża silnik i śrubę — używaj niskich prędkości. W trybie strzykawki skalibruj oś E tak, by E1 = 1 mm przesuwu tłoka (użyj wartości M92 powyżej).',
+      footer:'Generator G-code · zimna ekstruzja i strzykawka · Marlin / Ender 3',
+      defaultName:'zimna_ekstruzja', syrName:'strzykawka_dozowanie', custom:'Własna…'
+    }
+  };
+
+  const G={
+    en:{bar:'; ============================================================',
+      head:'; COLD EXTRUSION - Ender 3 (Marlin)',
+      headS:'; SYRINGE DISPENSE - Ender 3 (Marlin)',
+      warn:'; Extruder movement only. NO nozzle or bed heating.',
+      gen:'; Generated by the cold extrusion G-code generator',
+      m302:'M302 P1            ; allow cold extrusion',
+      m83:'M83                ; relative extrusion',
+      m82:'M82                ; absolute extrusion',
+      g92:'G92 E0             ; reset extruder position',
+      cont:'; --- Continuous extruder movement ---',
+      both:'; --- Back-and-forth movement ---',
+      cyc:(i,n)=>'; cycle '+i+'/'+n,
+      m400:'M400               ; wait for moves to finish',
+      m84:'M84                ; disable motors', end:'; end',
+      sy1:(ml,d,a)=>'; syringe: '+ml+' mL, ID '+d+' mm, barrel area '+a+' mm^2',
+      sy2:(v,l)=>'; dispense '+v+' -> plunger travel '+l+' mm',
+      sy3:(r,f)=>'; rate '+r+' -> feed '+f+' mm/min',
+      m92:s=>'M92 E'+s+'          ; E steps/mm for lead screw (E1 = 1 mm plunger)',
+      sydo:'; --- Syringe dispense ---',
+      sy4:(d,lbl,sign)=>'; direction: '+d+(lbl?' = '+lbl:'')+'  (E '+sign+')'},
+    pl:{bar:'; ============================================================',
+      head:'; ZIMNA EKSTRUZJA - Ender 3 (Marlin)',
+      headS:'; DOZOWANIE STRZYKAWKA - Ender 3 (Marlin)',
+      warn:'; Tylko ruch ekstrudera. BEZ grzania dyszy i stolu.',
+      gen:'; Wygenerowano generatorem G-code zimnej ekstruzji',
+      m302:'M302 P1            ; zezwol na zimna ekstruzje',
+      m83:'M83                ; ekstruzja wzgledna',
+      m82:'M82                ; ekstruzja bezwzgledna',
+      g92:'G92 E0             ; wyzeruj pozycje ekstrudera',
+      cont:'; --- Ciagly ruch ekstruderem ---',
+      both:'; --- Ruch tam i z powrotem ---',
+      cyc:(i,n)=>'; cykl '+i+'/'+n,
+      m400:'M400               ; poczekaj na zakonczenie ruchow',
+      m84:'M84                ; wylacz silniki', end:'; koniec',
+      sy1:(ml,d,a)=>'; strzykawka: '+ml+' mL, ID '+d+' mm, pole cylindra '+a+' mm^2',
+      sy2:(v,l)=>'; dozowanie '+v+' -> przesuw tloka '+l+' mm',
+      sy3:(r,f)=>'; predkosc '+r+' -> feed '+f+' mm/min',
+      m92:s=>'M92 E'+s+'          ; kroki E/mm dla sruby (E1 = 1 mm tloka)',
+      sydo:'; --- Dozowanie strzykawka ---',
+      sy4:(d,lbl,sign)=>'; kierunek: '+d+(lbl?' = '+lbl:'')+'  (E '+sign+')'}
+  };
+
+  const num=(id,def)=>{const v=parseFloat($(id).value);return isFinite(v)?v:def;};
+  const trim=n=>(Math.round(n*1000)/1000).toString();
+  const r2=n=>Math.round(n*100)/100;
+  function fmtTime(min){if(!isFinite(min)||min<=0)return '0:00';
+    const t=Math.round(min*60),m=Math.floor(t/60),s=t%60;return m+':'+String(s).padStart(2,'0');}
+
+  // build syringe dropdown
+  function buildSyrOptions(){
+    const sel=$('syrSel'); const cur=sel.value;
+    sel.innerHTML='';
+    SYR.forEach(s=>{const o=document.createElement('option');o.value=String(s.d);
+      o.dataset.ml=s.ml;o.textContent=s.ml+' mL — Ø '+s.d+' mm';sel.appendChild(o);});
+    const c=document.createElement('option');c.value='custom';c.textContent=T[lang].custom;sel.appendChild(c);
+    sel.value=cur||'15.96';
+    if(!sel.value) sel.value='15.96';
+  }
+
+  const setTxt=(id,s)=>{const e=$(id);if(e)e.textContent=s;};
+  function applyLang(){
+    const s=T[lang];
+    document.documentElement.lang=lang; document.title=s.title;
+    $('t_h1').innerHTML=s.h1;
+    ['sub|sub','status|status','pParams|pParams','legMove|legMove','feedMode|feedMode',
+     'modeCont|modeCont','modeCycle|modeCycle','modeSyringe|modeSyringe','testCap|testCap',
+     'totalDist|totalDist','hintDist|hintDist','stepLen|stepLen','hintStep|hintStep',
+     'push|push','pull|pull','cycles|cycles','feedRate|feedRate',
+     'syrSel|syrSel','syrHint|syrHint','plungerDia|plungerDia','volume|volume','rate|rate',
+     'subMech|subMech','lead|lead','stepsRev|stepsRev','micro|micro','m92|m92',
+     'subDir|subDir','dirCW|dirCW','dirCCW|dirCCW','lblCW|lblCW','lblCCW|lblCCW','dirHint|dirHint',
+     'maxStep|maxStep','maxStepHint|maxStepHint','maxWord|maxWord',
+     'legCmd|legCmd','allowCold|allowCold','allowColdSub|allowColdSub','relExt|relExt',
+     'wait|wait','waitSub|waitSub','disable|disable','legFile|legFile','fname|fname','fnameHint|fnameHint',
+     'pPreview|pPreview','stTimeK|stTimeK','stLinesK|stLinesK','genGcode|genGcode',
+     'noteWord|noteWord','noteBody|noteBody','footer|footer'
+    ].forEach(p=>{const [el,key]=p.split('|');setTxt('t_'+el,s[key]);});
+    setTxt('download',s.download); setTxt('copy',s.copy);
+    $('cwLabel').placeholder=s.lblPh; $('ccwLabel').placeholder=s.lblPh;
+    buildSyrOptions();
+    // filename swap if default
+    const others=[T.en.defaultName,T.pl.defaultName,T.en.syrName,T.pl.syrName];
+    if(others.includes($('fname').value.trim())||$('fname').value.trim()==='')
+      $('fname').value = mode==='syr'?s.syrName:s.defaultName;
+    render();
+  }
+
+  $('langSeg').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;
+    lang=b.dataset.lang;[...$('langSeg').children].forEach(x=>x.setAttribute('aria-pressed',x===b));applyLang();});
+
+  $('modeWrap').addEventListener('click',e=>{const b=e.target.closest('[data-mode]');if(!b)return;
+    const prev=mode; mode=b.dataset.mode;
+    document.querySelectorAll('[data-mode]').forEach(x=>x.setAttribute('aria-pressed',x===b));
+    $('contFields').classList.toggle('hide',mode!=='cont');
+    $('cycleFields').classList.toggle('hide',mode!=='cycle');
+    $('syringeFields').classList.toggle('hide',mode!=='syr');
+    // sensible feed defaults per mode
+    if(mode==='syr'&&prev!=='syr'){$('fname').value=T[lang].syrName;}
+    if(mode!=='syr'&&prev==='syr'){$('fname').value=T[lang].defaultName;$('feed').value=100;}
+    render();});
+
+  // syringe dropdown -> diameter
+  $('syrSel').addEventListener('change',()=>{
+    if($('syrSel').value!=='custom'){$('dia').value=$('syrSel').value;}
+    render();});
+  $('dia').addEventListener('input',()=>{
+    const match=SYR.find(s=>Math.abs(s.d-parseFloat($('dia').value))<1e-6);
+    $('syrSel').value=match?String(match.d):'custom'; render();});
+
+  // direction toggle (CW = +E, CCW = -E)
+  $('dirSeg').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;
+    dir=b.dataset.dir;[...$('dirSeg').children].forEach(x=>x.setAttribute('aria-pressed',x===b));render();});
+
+  // dispense-rate slider (value stored internally in mm^3/min so unit switches keep the physical rate)
+  $('rateSlider').addEventListener('input',()=>{
+    rateMm3min=toMm3(parseFloat($('rateSlider').value)||0, $('rateUnit').value); render();});
+  // exact-value box (synced with slider; build() clamps to the physical ceiling)
+  $('rateBox').addEventListener('input',()=>{
+    rateMm3min=toMm3(parseFloat($('rateBox').value)||0, $('rateUnit').value); render();});
+
+  ['distance','step','push','pull','cycles','feed','relative','wait','disable','fname',
+   'vol','volUnit','rateUnit','lead','stepsRev','micro','maxsteps','m92on','cwLabel','ccwLabel']
+    .forEach(id=>{$(id).addEventListener('input',render);$(id).addEventListener('change',render);});
+
+  function build(){
+    const g=G[lang], s=T[lang], rel=$('relative').checked;
+    const lines=[]; const C=t=>lines.push({t:'c',s:t}), K=t=>lines.push({t:'k',s:t}), W=t=>lines.push({t:'w',s:t});
+    let feed=Math.max(1,num('feed',100));
+    let moveCount=0, timeMin=0, statMain={key:'stNetK',val:'0',unit:'mm'}, readout=null;
+
+    // ----- SYRINGE -----
+    if(mode==='syr'){
+      const dia=Math.max(0.01,num('dia',15.96));
+      const area=Math.PI*(dia/2)*(dia/2);            // mm^2
+      const volUnit=$('volUnit').value;
+      const volIn=Math.max(0,num('vol',5));
+      const vol_mm3=volUnit==='ml'?volIn*1000:volIn; // µL = mm^3
+      const travel=area>0?vol_mm3/area:0;            // mm plunger
+      const lead=Math.max(0.01,num('lead',0.7));
+      const spr=Math.max(1,num('stepsRev',200)), micro=Math.max(1,num('micro',16));
+      const stepsPerMm=spr*micro/lead;
+      const maxStepRate=Math.max(1,num('maxsteps',10000));   // steps/s (physical limit)
+      const maxFeedLin=maxStepRate*60/stepsPerMm;            // mm/min ceiling
+      const maxMm3=maxFeedLin*area;                          // mm^3/min ceiling
+      rateMm3min=Math.min(Math.max(0,rateMm3min),maxMm3);    // clamp rate to physical limit
+      const rUnit=$('rateUnit').value;
+      feed=area>0?rateMm3min/area:0;                         // mm/min (<= maxFeedLin)
+      const revs=lead>0?travel/lead:0;
+      timeMin=rateMm3min>0?vol_mm3/rateMm3min:0;
+      // motor-speed transparency (steps here are MICROsteps, matching steps/mm)
+      const fullPerSec=maxStepRate/micro;
+      const rpmMax=maxStepRate*60/(micro*spr);
+      const rpmNow=lead>0?feed/lead:0;
+      $('t_maxStepHint').textContent=Math.round(maxStepRate)+' '+s.uStep+' = '+Math.round(fullPerSec)+' '+s.full+' ≈ '+Math.round(rpmMax)+' '+s.rpm;
+
+      const volLabel=volUnit==='ml'?(r2(volIn)+' mL'):(r2(volIn)+' uL');
+      const rateLabel=r2(fromMm3(rateMm3min,rUnit))+' '+unitLbl(rUnit).replace('µ','u');
+
+      // direction: CW = +E, CCW = -E. Sign the E move accordingly.
+      const eSign = dir==='ccw' ? -1 : 1;
+      const dirName = dir==='ccw' ? 'CCW' : 'CW';
+      const dirLbl = (dir==='ccw' ? $('ccwLabel').value : $('cwLabel').value).trim();
+      const eVal = travel*eSign;
+
+      C(g.bar); C(g.headS); W(g.warn); C(g.gen); C(g.bar);
+      C(g.sy1(SYR.find(x=>Math.abs(x.d-dia)<1e-6)?SYR.find(x=>Math.abs(x.d-dia)<1e-6).ml:'?',trim(dia),area.toFixed(1)));
+      C(g.sy2(volLabel,trim(travel)));
+      C(g.sy3(rateLabel,feed.toFixed(2)));
+      C(g.sy4(dirName,dirLbl,eSign>0?'positive':'negative'));
+      C(g.bar);
+      if($('allowCold').checked) K(g.m302);
+      K(rel?g.m83:g.m82);
+      if($('m92on').checked) K(g.m92(r2(stepsPerMm)));
+      K(g.g92); C('');
+      C(g.sydo);
+      K('G1 E'+trim(eVal)+' F'+r2(feed)); moveCount++;
+      C('');
+      if($('wait').checked) K(g.m400);
+      if($('disable').checked) K(g.m84);
+      C(g.end);
+
+      statMain={key:'stVolK', val:r2(volIn), unit:(volUnit==='ml'?'mL':'µL')};
+      readout=[
+        {k:s.roArea, v:area.toFixed(1)+' mm²'},
+        {k:s.roTravel, v:trim(travel)+' mm'},
+        {k:s.roRev, v:revs.toFixed(2)},
+        {k:s.roSteps, v:r2(stepsPerMm)},
+        {k:s.roFeed, v:feed.toFixed(2)+' mm/min'},
+        {k:s.roMotor, v:rpmNow.toFixed(1)+' / '+Math.round(rpmMax)+' '+s.rpm},
+        {k:s.roMax, v:r2(fromMm3(maxMm3,rUnit))+' '+unitLbl(rUnit)},
+        {k:s.roDir, v:(dirLbl?dirLbl+' · ':'')+dirName+' (E'+(eSign>0?'+':'−')+')'}
+      ];
+      $('m92sub').textContent='M92 E'+r2(stepsPerMm);
+      return {lines,moveCount,feed,timeMin,statMain,readout,dirLbl,dirName,sliderMax:maxMm3,rateNow:rateMm3min,rUnit};
+    }
+
+    // ----- CONT / CYCLE -----
+    C(g.bar); C(g.head); W(g.warn); C(g.gen); C(g.bar);
+    if($('allowCold').checked) K(g.m302);
+    K(rel?g.m83:g.m82); K(g.g92); C('');
+    let net=0, travel=0; const f=' F'+feed;
+
+    if(mode==='cont'){
+      const dist=Math.max(0,num('distance',100)), step=Math.max(0.01,num('step',5));
+      C(g.cont); let done=0,cum=0;
+      while(done<dist-1e-6){const seg=Math.min(step,dist-done);
+        done+=seg;net+=seg;travel+=seg;cum+=seg;moveCount++;
+        K('G1 E'+trim(rel?seg:cum)+f);}
+    }else{
+      const push=Math.max(0,num('push',10)), pull=Math.max(0,num('pull',10)), cyc=Math.max(1,Math.round(num('cycles',10)));
+      C(g.both); let cum=0;
+      for(let i=0;i<cyc;i++){C(g.cyc(i+1,cyc));
+        if(push>0){cum+=push;travel+=push;net+=push;moveCount++;K('G1 E'+trim(rel?push:cum)+f);}
+        if(pull>0){cum-=pull;travel+=pull;net-=pull;moveCount++;K('G1 E'+trim(rel?-pull:cum)+f);}}
+    }
+    C('');
+    if($('wait').checked) K(g.m400);
+    if($('disable').checked) K(g.m84);
+    C(g.end);
+    timeMin=feed>0?travel/feed:0;
+    statMain={key:'stNetK', val:trim(Math.abs(net)), unit:'mm'};
+    return {lines,moveCount,feed,timeMin,statMain,readout:null};
+  }
+
+  function render(){
+    const s=T[lang];
+    const {lines,moveCount,feed,timeMin,statMain,readout,dirName,dirLbl,sliderMax,rateNow,rUnit}=build();
+
+    const mms=feed/60;
+    $('feedHint').textContent='mm/min · ≈ '+mms.toFixed(2)+' mm/s';
+    $('feedMms').textContent=mms.toFixed(2);
+    $('extModeCmd').textContent=$('relative').checked?s.extRel:s.extAbs;
+    // feed field is derived in syringe mode -> reflect it (read-only feel)
+    $('feed').parentElement.style.display = mode==='syr' ? 'none' : '';
+
+    setTxt('stMainK', s[statMain.key]);
+    $('stMain').innerHTML=statMain.val+'<small>'+statMain.unit+'</small>';
+    $('stTime').innerHTML=fmtTime(timeMin)+'<small>min</small>';
+    $('stLines').textContent=lines.length;
+
+    const dur=Math.min(6,Math.max(0.25,60/Math.max(feed,1)));
+    const mon=$('feedMon'); mon.style.setProperty('--feed-dur',dur.toFixed(3)+'s');
+    if(mode==='syr'){
+      const dn = dirName || 'CW';
+      $('feedDir').textContent = (dirLbl? dirLbl+' ':'') + (dir==='ccw'?'↺ '+dn:'↻ '+dn);
+      // adapt slider to physical limit
+      const maxU=fromMm3(sliderMax||0,rUnit), valU=fromMm3(rateNow||0,rUnit);
+      const sl=$('rateSlider');
+      sl.max = maxU>0 ? (Math.round(maxU*10000)/10000) : 1;
+      sl.step = maxU>0 ? (Math.round((maxU/500)*100000)/100000) : 0.001;
+      sl.value = valU;
+      const pct = maxU>0 ? Math.max(0,Math.min(100,valU/maxU*100)) : 0;
+      // traffic-light zones: 0-60 green, 60-80 yellow, 80-100 red
+      const st=['var(--z-green) 0%','var(--z-green) '+Math.min(pct,60)+'%'];
+      if(pct>60) st.push('var(--z-yellow) 60%','var(--z-yellow) '+Math.min(pct,80)+'%');
+      if(pct>80) st.push('var(--z-red) 80%','var(--z-red) '+pct+'%');
+      st.push('var(--line2) '+pct+'%','var(--line2) 100%');
+      sl.style.setProperty('--rng','linear-gradient(90deg,'+st.join(',')+')');
+      sl.style.setProperty('--thumb', pct>80?'var(--z-red)':pct>60?'var(--z-yellow)':'var(--z-green)');
+      // exact-value box + allowed range (widełki)
+      const box=$('rateBox');
+      box.max = maxU>0 ? (Math.round(maxU*100)/100) : 0;
+      box.step = sl.step;
+      if(document.activeElement!==box) box.value=r2(valU);
+      $('rateRange').textContent='(0 – '+r2(maxU)+' '+unitLbl(rUnit)+')';
+    } else {
+      $('feedDir').textContent = mode==='cycle'?s.dirBoth : s.dirPush;
+    }
+    mon.classList.toggle('rev', mode==='syr' && dir==='ccw');
+    mon.classList.toggle('paused',feed<=0);
+
+    // readout box
+    const rb=$('syrReadout');
+    if(readout){rb.style.display='';rb.innerHTML=readout.map(r=>'<div><span>'+r.k+'</span><b>'+r.v+'</b></div>').join('');}
+    else rb.style.display='none';
+
+    rawGcode=lines.map(l=>l.s).join('\n')+'\n';
+    const esc=x=>x.replace(/&/g,'&amp;').replace(/</g,'&lt;');
+    $('preview').innerHTML=lines.map(l=>{const x=esc(l.s);
+      if(l.t==='c')return '<span class="c">'+x+'</span>';
+      if(l.t==='w')return '<span class="warn">'+x+'</span>';
+      const i=x.indexOf(';');
+      if(i>-1)return '<span class="cmd">'+x.slice(0,i)+'</span><span class="c">'+x.slice(i)+'</span>';
+      return '<span class="cmd">'+x+'</span>';}).join('\n');
+    $('lineCap').textContent=s.eMoves(moveCount);
+  }
+
+  $('download').addEventListener('click',()=>{
+    let name=($('fname').value.trim()||(mode==='syr'?T[lang].syrName:T[lang].defaultName)).replace(/[^\w\-]+/g,'_');
+    if(!/\.gcode$/i.test(name)) name+='.gcode';
+    const blob=new Blob([rawGcode],{type:'text/plain'}), url=URL.createObjectURL(blob);
+    const a=document.createElement('a');a.href=url;a.download=name;document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);
+  });
+  $('copy').addEventListener('click',async()=>{const btn=$('copy'),old=T[lang].copy;
+    try{await navigator.clipboard.writeText(rawGcode);btn.textContent=T[lang].copied;}
+    catch(e){btn.textContent=T[lang].copyErr;}setTimeout(()=>btn.textContent=old,1400);});
+
+  applyLang();
+})();
+</script>
+</body>
+</html>
