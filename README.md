@@ -16,7 +16,8 @@ The tool turns your printer's extruder stepper into a precise syringe pump. You 
   - screw lead (mm/rev, e.g. M4 ≈ 0.7), steps per revolution and microstepping,
   - optional automatic `M92` extruder steps-per-mm configuration,
   - plunger direction selection (CW/CCW) with custom labels,
-  - motor RPM readout for transparency about actual motor speed.
+  - motor RPM readout for transparency about actual motor speed,
+  - **approximate maximum plunger force and barrel pressure**, from motor torque, screw efficiency and lead — the pressure turns amber above 3 bar and red above 10 bar, where typical disposable syringes start to leak.
 - **Continuous test** — move a total distance in fixed step lengths (for calibration and dry runs).
 - **Cycle test** — repeated push/pull cycles (e.g. for checking backlash or priming).
 

@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- cold-extrusion generator · v10 · motor RPM transparency -->
+<!-- cold-extrusion generator · v11 · plunger thrust estimate -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -117,6 +117,8 @@
   .readout div{display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px dashed var(--line)}
   .readout div:last-child{border-bottom:0}
   .readout b{color:var(--ice-bright);font-weight:600}
+  .readout b.warn{color:var(--amber)}
+  .readout b.crit{color:var(--z-red)}
 
   .monitor{display:flex;align-items:center;gap:16px;padding:14px 16px;border:1px solid var(--line);border-radius:var(--radius);background:#0b1215;margin-bottom:16px}
   .feed{position:relative;flex:1;height:26px;border-radius:3px;overflow:hidden;background:#0c1417;border:1px solid var(--line2)}
@@ -281,6 +283,20 @@
               <input type="number" id="maxsteps" value="10000" min="100" step="500">
               <div class="hint" id="t_maxStepHint"></div></div>
 
+            <div class="subhead" id="t_subForce"></div>
+            <div class="row2">
+              <div class="field"><label id="t_torque"></label>
+                <input type="number" id="torque" value="40" min="0" step="1">
+                <div class="hint" id="t_torqueHint"></div></div>
+              <div class="field"><label id="t_screwEff"></label>
+                <input type="number" id="screwEff" value="25" min="1" max="100" step="1">
+                <div class="hint" id="t_screwEffHint"></div></div>
+            </div>
+            <div class="field"><label id="t_torqueUse"></label>
+              <input type="number" id="torqueUse" value="70" min="1" max="100" step="5">
+              <div class="hint" id="t_torqueUseHint"></div>
+              <div class="hint" id="t_forceFormula"></div></div>
+
             <div class="toggle" style="border-top:1px solid var(--line);margin-top:6px">
               <div class="t-label"><span id="t_m92"></span><small id="m92sub"></small></div>
               <label class="switch"><input type="checkbox" id="m92on" checked><span></span></label>
@@ -398,6 +414,12 @@
       dirHint:'One direction dispenses, the other draws in — which is which depends on your wiring. Run a short move, watch the plunger, then label each direction. CW = positive E, CCW = negative E.',
       roDir:'Active direction',
       maxStep:'Max step rate', maxStepHint:'steps/s — firmware / motor limit',
+      subForce:'Plunger thrust',
+      torque:'Motor holding torque', torqueHint:'N·cm — Ender 3 E-motor ≈ 40',
+      screwEff:'Screw efficiency', screwEffHint:'% — M4 rod ≈ 25 · Tr8 ≈ 40 · ball ≈ 90',
+      torqueUse:'Usable torque', torqueUseHint:'% of holding torque — running & microstepping derate',
+      forceFormula:'F ≈ 2π · torque · efficiency / lead. Rough estimate, not a safety rating — disposable Luer syringes typically start leaking around 3–10 bar.',
+      roForce:'Max plunger force', roPress:'Max barrel pressure',
       maxWord:'max', roMax:'Max rate', roFeed:'Feed (linear)',
       uStep:'µsteps/s', full:'full/s', rpm:'RPM', roMotor:'Motor speed',
       legCmd:'Commands',
@@ -440,6 +462,12 @@
       dirHint:'Jeden kierunek wytłacza, drugi nabiera — który jest który, zależy od okablowania. Uruchom krótki ruch, zobacz jak przesuwa się tłok i przypisz etykiety. CW = E dodatnie, CCW = E ujemne.',
       roDir:'Aktywny kierunek',
       maxStep:'Maks. kroki/s', maxStepHint:'kroków/s — limit firmware / silnika',
+      subForce:'Siła pchania tłoka',
+      torque:'Moment trzymający silnika', torqueHint:'N·cm — silnik E w Ender 3 ≈ 40',
+      screwEff:'Sprawność śruby', screwEffHint:'% — pręt M4 ≈ 25 · Tr8 ≈ 40 · kulowa ≈ 90',
+      torqueUse:'Moment użyteczny', torqueUseHint:'% momentu trzymającego — zapas na ruch i mikrokroki',
+      forceFormula:'F ≈ 2π · moment · sprawność / skok. Szacunek, nie limit bezpieczeństwa — jednorazowe strzykawki Luer zaczynają przeciekać zwykle przy 3–10 bar.',
+      roForce:'Maks. siła tłoka', roPress:'Maks. ciśnienie w cylindrze',
       maxWord:'maks.', roMax:'Maks. prędkość', roFeed:'Feed (liniowy)',
       uStep:'µkroków/s', full:'pełnych/s', rpm:'obr/min', roMotor:'Obroty silnika',
       legCmd:'Komendy',
@@ -479,6 +507,7 @@
       sy1:(ml,d,a)=>'; syringe: '+ml+' mL, ID '+d+' mm, barrel area '+a+' mm^2',
       sy2:(v,l)=>'; dispense '+v+' -> plunger travel '+l+' mm',
       sy3:(r,f)=>'; rate '+r+' -> feed '+f+' mm/min',
+      sy5:(n,k,p)=>'; max plunger force ~'+n+' N ('+k+' kgf) -> barrel pressure ~'+p+' bar',
       m92:s=>'M92 E'+s+'          ; E steps/mm for lead screw (E1 = 1 mm plunger)',
       sydo:'; --- Syringe dispense ---',
       sy4:(d,lbl,sign)=>'; direction: '+d+(lbl?' = '+lbl:'')+'  (E '+sign+')'},
@@ -499,6 +528,7 @@
       sy1:(ml,d,a)=>'; strzykawka: '+ml+' mL, ID '+d+' mm, pole cylindra '+a+' mm^2',
       sy2:(v,l)=>'; dozowanie '+v+' -> przesuw tloka '+l+' mm',
       sy3:(r,f)=>'; predkosc '+r+' -> feed '+f+' mm/min',
+      sy5:(n,k,p)=>'; maks. sila tloka ~'+n+' N ('+k+' kgf) -> cisnienie w cylindrze ~'+p+' bar',
       m92:s=>'M92 E'+s+'          ; kroki E/mm dla sruby (E1 = 1 mm tloka)',
       sydo:'; --- Dozowanie strzykawka ---',
       sy4:(d,lbl,sign)=>'; kierunek: '+d+(lbl?' = '+lbl:'')+'  (E '+sign+')'}
@@ -534,6 +564,9 @@
      'subMech|subMech','lead|lead','stepsRev|stepsRev','micro|micro','m92|m92',
      'subDir|subDir','dirCW|dirCW','dirCCW|dirCCW','lblCW|lblCW','lblCCW|lblCCW','dirHint|dirHint',
      'maxStep|maxStep','maxStepHint|maxStepHint','maxWord|maxWord',
+     'subForce|subForce','torque|torque','torqueHint|torqueHint',
+     'screwEff|screwEff','screwEffHint|screwEffHint',
+     'torqueUse|torqueUse','torqueUseHint|torqueUseHint','forceFormula|forceFormula',
      'legCmd|legCmd','allowCold|allowCold','allowColdSub|allowColdSub','relExt|relExt',
      'wait|wait','waitSub|waitSub','disable|disable','legFile|legFile','fname|fname','fnameHint|fnameHint',
      'pPreview|pPreview','stTimeK|stTimeK','stLinesK|stLinesK','genGcode|genGcode',
@@ -583,7 +616,8 @@
     rateMm3min=toMm3(parseFloat($('rateBox').value)||0, $('rateUnit').value); render();});
 
   ['distance','step','push','pull','cycles','feed','relative','wait','disable','fname',
-   'vol','volUnit','rateUnit','lead','stepsRev','micro','maxsteps','m92on','cwLabel','ccwLabel']
+   'vol','volUnit','rateUnit','lead','stepsRev','micro','maxsteps','m92on','cwLabel','ccwLabel',
+   'torque','screwEff','torqueUse']
     .forEach(id=>{$(id).addEventListener('input',render);$(id).addEventListener('change',render);});
 
   function build(){
@@ -616,6 +650,14 @@
       const rpmMax=maxStepRate*60/(micro*spr);
       const rpmNow=lead>0?feed/lead:0;
       $('t_maxStepHint').textContent=Math.round(maxStepRate)+' '+s.uStep+' = '+Math.round(fullPerSec)+' '+s.full+' ≈ '+Math.round(rpmMax)+' '+s.rpm;
+      // plunger thrust: screw turns motor torque into axial force (lead in m, torque in N·m)
+      const torqueNm=Math.max(0,num('torque',40))/100;
+      const effi=Math.min(100,Math.max(1,num('screwEff',25)))/100;
+      const tUse=torqueNm*Math.min(100,Math.max(1,num('torqueUse',70)))/100;
+      const forceN=2*Math.PI*tUse*effi/(lead/1000);
+      const forceKgf=forceN/9.80665;
+      const pressBar=area>0?forceN/area*10:0;   // N/mm² = MPa, ×10 = bar
+      const pressCls=pressBar>=10?'crit':pressBar>=3?'warn':'';
 
       const volLabel=volUnit==='ml'?(r2(volIn)+' mL'):(r2(volIn)+' uL');
       const rateLabel=r2(fromMm3(rateMm3min,rUnit))+' '+unitLbl(rUnit).replace('µ','u');
@@ -630,6 +672,7 @@
       C(g.sy1(SYR.find(x=>Math.abs(x.d-dia)<1e-6)?SYR.find(x=>Math.abs(x.d-dia)<1e-6).ml:'?',trim(dia),area.toFixed(1)));
       C(g.sy2(volLabel,trim(travel)));
       C(g.sy3(rateLabel,feed.toFixed(2)));
+      C(g.sy5(Math.round(forceN),forceKgf.toFixed(1),pressBar.toFixed(1)));
       C(g.sy4(dirName,dirLbl,eSign>0?'positive':'negative'));
       C(g.bar);
       if($('allowCold').checked) K(g.m302);
@@ -651,6 +694,8 @@
         {k:s.roSteps, v:r2(stepsPerMm)},
         {k:s.roFeed, v:feed.toFixed(2)+' mm/min'},
         {k:s.roMotor, v:rpmNow.toFixed(1)+' / '+Math.round(rpmMax)+' '+s.rpm},
+        {k:s.roForce, v:'≈ '+Math.round(forceN)+' N · '+forceKgf.toFixed(1)+' kgf'},
+        {k:s.roPress, v:'≈ '+pressBar.toFixed(1)+' bar', cls:pressCls},
         {k:s.roMax, v:r2(fromMm3(maxMm3,rUnit))+' '+unitLbl(rUnit)},
         {k:s.roDir, v:(dirLbl?dirLbl+' · ':'')+dirName+' (E'+(eSign>0?'+':'−')+')'}
       ];
@@ -735,7 +780,7 @@
 
     // readout box
     const rb=$('syrReadout');
-    if(readout){rb.style.display='';rb.innerHTML=readout.map(r=>'<div><span>'+r.k+'</span><b>'+r.v+'</b></div>').join('');}
+    if(readout){rb.style.display='';rb.innerHTML=readout.map(r=>'<div><span>'+r.k+'</span><b'+(r.cls?' class="'+r.cls+'"':'')+'>'+r.v+'</b></div>').join('');}
     else rb.style.display='none';
 
     rawGcode=lines.map(l=>l.s).join('\n')+'\n';
