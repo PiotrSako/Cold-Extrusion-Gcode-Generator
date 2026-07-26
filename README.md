@@ -18,6 +18,7 @@ The tool turns your printer's extruder stepper into a precise syringe pump. You 
   - plunger direction selection (CW/CCW) with custom labels,
   - motor RPM readout for transparency about actual motor speed,
   - **approximate maximum plunger force and barrel pressure**, from motor torque, screw efficiency and lead — the pressure turns amber above 3 bar and red above 10 bar, where typical disposable syringes start to leak.
+- **Revolutions** — the simplest mode: just turn the motor. Enter an amount (revolutions **or** microsteps), speed in RPM, direction, motor steps/rev and microstepping. It emits `M92 E<µsteps per rev>` so that **1 E unit = 1 revolution and `F` is simply RPM**, which keeps the G-code readable and the feedrate inside Marlin's limits. The readout shows the resulting step rate and warns when it exceeds what an 8-bit board can keep up with.
 - **Continuous test** — move a total distance in fixed step lengths (for calibration and dry runs).
 - **Cycle test** — repeated push/pull cycles (e.g. for checking backlash or priming).
 

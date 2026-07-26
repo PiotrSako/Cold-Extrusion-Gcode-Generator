@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- cold-extrusion generator · v11 · plunger thrust estimate -->
+<!-- cold-extrusion generator · v12 · plain motor rotation mode -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -196,6 +196,7 @@
                 <div class="seg">
                   <button type="button" data-mode="cont" aria-pressed="false" id="t_modeCont"></button>
                   <button type="button" data-mode="cycle" aria-pressed="false" id="t_modeCycle"></button>
+                  <button type="button" data-mode="turn" aria-pressed="false" id="t_modeTurn"></button>
                 </div>
               </div>
             </div>
@@ -224,6 +225,32 @@
             </div>
             <div class="field"><label id="t_cycles"></label>
               <input type="number" id="cycles" value="10" min="1" step="1"></div>
+          </div>
+          <!-- TURN (plain motor revolutions) -->
+          <div id="turnFields" class="hide">
+            <div class="field"><label id="t_turnAmt"></label>
+              <div class="inline">
+                <input type="number" id="turnAmt" value="10" min="0" step="1">
+                <select id="turnUnit"><option value="rev" id="optRev"></option><option value="steps" id="optSteps"></option></select>
+              </div>
+              <div class="hint" id="t_turnAmtHint"></div></div>
+            <div class="field"><label id="t_turnSpeed"></label>
+              <input type="number" id="turnRpm" value="60" min="0.01" step="1">
+              <div class="hint" id="t_turnSpeedHint"></div></div>
+            <div class="row2">
+              <div class="field"><label id="t_turnSpr"></label>
+                <input type="number" id="turnSpr" value="200" min="1" step="1"></div>
+              <div class="field"><label id="t_turnMicro"></label>
+                <input type="number" id="turnMicro" value="16" min="1" step="1"></div>
+            </div>
+            <div class="subhead" id="t_subDirTurn"></div>
+            <div class="field">
+              <div class="seg" id="dirSegTurn">
+                <button type="button" data-tdir="cw" aria-pressed="true" id="t_dirCWt"></button>
+                <button type="button" data-tdir="ccw" aria-pressed="false" id="t_dirCCWt"></button>
+              </div>
+            </div>
+            <div class="readout" id="turnReadout"></div>
           </div>
 
           <!-- SYRINGE -->
@@ -347,7 +374,7 @@
       <div class="pbody">
         <div class="monitor">
           <div class="feed" id="feedMon"><div class="strand"></div><div class="nozzle"></div></div>
-          <div class="mono-read"><b id="feedMms">1.67</b> mm/s<br><span id="feedDir"></span></div>
+          <div class="mono-read"><b id="feedMms">1.67</b> <span id="feedUnit">mm/s</span><br><span id="feedDir"></span></div>
         </div>
         <div class="stats">
           <div class="stat"><div class="k" id="stMainK"></div><div class="v" id="stMain"></div></div>
@@ -373,7 +400,7 @@
 <script>
 (function(){
   const $ = id => document.getElementById(id);
-  let lang='en', mode='syr', dir='cw', rawGcode='';
+  let lang='en', mode='syr', dir='cw', turnDir='cw', rawGcode='';
   let rateMm3min=1000; // internal dispense rate (mm^3/min), unit-independent
   const toMm3=(v,u)=>u==='mlmin'?v*1000:u==='uls'?v*60:v;
   const fromMm3=(m,u)=>u==='mlmin'?m/1000:u==='uls'?m/60:m;
@@ -397,7 +424,13 @@
       sub:'G-code generator for feeding filament without heating the nozzle or bed — for motor testing, cleaning, or syringe/paste dispensing.',
       status:'Heaters off',
       pParams:'Parameters', legMove:'Movement', feedMode:'Feed mode',
-      modeCont:'Continuous', modeCycle:'Back & forth', modeSyringe:'Syringe',
+      modeCont:'Continuous', modeCycle:'Back & forth', modeSyringe:'Syringe', modeTurn:'Revolutions',
+      turnAmt:'Amount', turnRev:'rev', turnSteps:'µsteps',
+      turnAmtHint:'motor revolutions, or microsteps at the setting below',
+      turnSpeed:'Speed', turnSpeedHint:'RPM — above ~10 000 µsteps/s an 8-bit board starts skipping',
+      turnSpr:'Motor steps/rev', turnMicro:'Microstepping',
+      roUrev:'µsteps / rev', roUtotal:'Total µsteps', roEval:'E value', roRate:'Step rate',
+      stTurnK:'Revolutions', revPerSec:'rev/s', turnName:'motor_rotation',
       totalDist:'Total distance', hintDist:'mm of filament',
       stepLen:'Step length', hintStep:'mm per G1 move',
       push:'Push (forward)', pull:'Pull (back)', cycles:'Cycles',
@@ -445,7 +478,13 @@
       sub:'Generator G-code do podawania filamentu bez grzania dyszy i stołu — do testu silnika, czyszczenia lub podawania ze strzykawki / past.',
       status:'Grzałki wyłączone',
       pParams:'Parametry', legMove:'Ruch', feedMode:'Tryb podawania',
-      modeCont:'Ciągły', modeCycle:'Tam i z powr.', modeSyringe:'Strzykawka',
+      modeCont:'Ciągły', modeCycle:'Tam i z powr.', modeSyringe:'Strzykawka', modeTurn:'Obroty',
+      turnAmt:'Ilość', turnRev:'obr.', turnSteps:'µkroki',
+      turnAmtHint:'obroty silnika lub mikrokroki przy ustawieniu poniżej',
+      turnSpeed:'Prędkość', turnSpeedHint:'obr/min — powyżej ~10 000 µkroków/s płyta 8-bit gubi kroki',
+      turnSpr:'Kroki silnika/obr.', turnMicro:'Mikrokroki',
+      roUrev:'µkroków / obr.', roUtotal:'µkroków łącznie', roEval:'Wartość E', roRate:'Prędkość kroków',
+      stTurnK:'Obroty', revPerSec:'obr/s', turnName:'obrot_silnika',
       totalDist:'Całkowity dystans', hintDist:'mm filamentu',
       stepLen:'Długość kroku', hintStep:'mm na jeden ruch G1',
       push:'Wysuw (naprzód)', pull:'Cofanie (wstecz)', cycles:'Liczba cykli',
@@ -493,6 +532,14 @@
     en:{bar:'; ============================================================',
       head:'; COLD EXTRUSION - Ender 3 (Marlin)',
       headS:'; SYRINGE DISPENSE - Ender 3 (Marlin)',
+      headT:'; MOTOR ROTATION - Ender 3 (Marlin)',
+      tu1:(spr,mi,u)=>'; motor: '+spr+' steps/rev x '+mi+' microsteps = '+u+' usteps/rev',
+      tu2:(r,u,d,s)=>'; move: '+r+' rev = '+u+' usteps, '+d+' (E '+s+')',
+      tu3:(rpm,sr)=>'; speed: '+rpm+' RPM = '+sr+' usteps/s',
+      m92t:u=>'M92 E'+u+'          ; 1 E unit = 1 motor revolution -> F is RPM',
+      m92warn:'; M92 changes E steps/mm for this session only (not saved unless M500)',
+      turn:'; --- Motor rotation ---',
+      sPos:'positive', sNeg:'negative',
       warn:'; Extruder movement only. NO nozzle or bed heating.',
       gen:'; Generated by the cold extrusion G-code generator',
       m302:'M302 P1            ; allow cold extrusion',
@@ -514,6 +561,14 @@
     pl:{bar:'; ============================================================',
       head:'; ZIMNA EKSTRUZJA - Ender 3 (Marlin)',
       headS:'; DOZOWANIE STRZYKAWKA - Ender 3 (Marlin)',
+      headT:'; OBROT SILNIKA - Ender 3 (Marlin)',
+      tu1:(spr,mi,u)=>'; silnik: '+spr+' krokow/obr x '+mi+' mikrokrokow = '+u+' ukrokow/obr',
+      tu2:(r,u,d,s)=>'; ruch: '+r+' obr = '+u+' ukrokow, '+d+' (E '+s+')',
+      tu3:(rpm,sr)=>'; predkosc: '+rpm+' obr/min = '+sr+' ukrokow/s',
+      m92t:u=>'M92 E'+u+'          ; 1 jednostka E = 1 obrot silnika -> F to obr/min',
+      m92warn:'; M92 zmienia kroki E/mm tylko na czas sesji (bez M500 nie zapisuje sie)',
+      turn:'; --- Obrot silnika ---',
+      sPos:'dodatnie', sNeg:'ujemne',
       warn:'; Tylko ruch ekstrudera. BEZ grzania dyszy i stolu.',
       gen:'; Wygenerowano generatorem G-code zimnej ekstruzji',
       m302:'M302 P1            ; zezwol na zimna ekstruzje',
@@ -536,6 +591,8 @@
 
   const num=(id,def)=>{const v=parseFloat($(id).value);return isFinite(v)?v:def;};
   const trim=n=>(Math.round(n*1000)/1000).toString();
+  // finer rounding: one microstep is a tiny fraction of a revolution
+  const trim6=n=>(Math.round(n*1e6)/1e6).toString();
   const r2=n=>Math.round(n*100)/100;
   function fmtTime(min){if(!isFinite(min)||min<=0)return '0:00';
     const t=Math.round(min*60),m=Math.floor(t/60),s=t%60;return m+':'+String(s).padStart(2,'0');}
@@ -552,6 +609,9 @@
   }
 
   const setTxt=(id,s)=>{const e=$(id);if(e)e.textContent=s;};
+  const nameFor=m=>m==='syr'?T[lang].syrName:m==='turn'?T[lang].turnName:T[lang].defaultName;
+  const isDefaultName=v=>{const n=(v||'').trim();
+    return n===''||['defaultName','syrName','turnName'].some(k=>n===T.en[k]||n===T.pl[k]);};
   function applyLang(){
     const s=T[lang];
     document.documentElement.lang=lang; document.title=s.title;
@@ -569,16 +629,18 @@
      'torqueUse|torqueUse','torqueUseHint|torqueUseHint','forceFormula|forceFormula',
      'legCmd|legCmd','allowCold|allowCold','allowColdSub|allowColdSub','relExt|relExt',
      'wait|wait','waitSub|waitSub','disable|disable','legFile|legFile','fname|fname','fnameHint|fnameHint',
+     'modeTurn|modeTurn','turnAmt|turnAmt','turnAmtHint|turnAmtHint',
+     'turnSpeed|turnSpeed','turnSpeedHint|turnSpeedHint','turnSpr|turnSpr','turnMicro|turnMicro',
+     'subDirTurn|subDir','dirCWt|dirCW','dirCCWt|dirCCW',
      'pPreview|pPreview','stTimeK|stTimeK','stLinesK|stLinesK','genGcode|genGcode',
      'noteWord|noteWord','noteBody|noteBody','footer|footer'
     ].forEach(p=>{const [el,key]=p.split('|');setTxt('t_'+el,s[key]);});
     setTxt('download',s.download); setTxt('copy',s.copy);
     $('cwLabel').placeholder=s.lblPh; $('ccwLabel').placeholder=s.lblPh;
+    setTxt('optRev',s.turnRev); setTxt('optSteps',s.turnSteps);
     buildSyrOptions();
     // filename swap if default
-    const others=[T.en.defaultName,T.pl.defaultName,T.en.syrName,T.pl.syrName];
-    if(others.includes($('fname').value.trim())||$('fname').value.trim()==='')
-      $('fname').value = mode==='syr'?s.syrName:s.defaultName;
+    if(isDefaultName($('fname').value)) $('fname').value=nameFor(mode);
     render();
   }
 
@@ -590,11 +652,18 @@
     document.querySelectorAll('[data-mode]').forEach(x=>x.setAttribute('aria-pressed',x===b));
     $('contFields').classList.toggle('hide',mode!=='cont');
     $('cycleFields').classList.toggle('hide',mode!=='cycle');
+    $('turnFields').classList.toggle('hide',mode!=='turn');
     $('syringeFields').classList.toggle('hide',mode!=='syr');
-    // sensible feed defaults per mode
-    if(mode==='syr'&&prev!=='syr'){$('fname').value=T[lang].syrName;}
-    if(mode!=='syr'&&prev==='syr'){$('fname').value=T[lang].defaultName;$('feed').value=100;}
+    // sensible defaults per mode (a custom file name is left alone)
+    if(mode!==prev){
+      if(isDefaultName($('fname').value)) $('fname').value=nameFor(mode);
+      if(prev==='syr'||prev==='turn') $('feed').value=100;
+    }
     render();});
+
+  // direction for the plain-rotation mode (kept separate from syringe direction)
+  $('dirSegTurn').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;
+    turnDir=b.dataset.tdir;[...$('dirSegTurn').children].forEach(x=>x.setAttribute('aria-pressed',x===b));render();});
 
   // syringe dropdown -> diameter
   $('syrSel').addEventListener('change',()=>{
@@ -617,7 +686,7 @@
 
   ['distance','step','push','pull','cycles','feed','relative','wait','disable','fname',
    'vol','volUnit','rateUnit','lead','stepsRev','micro','maxsteps','m92on','cwLabel','ccwLabel',
-   'torque','screwEff','torqueUse']
+   'torque','screwEff','torqueUse','turnAmt','turnUnit','turnRpm','turnSpr','turnMicro']
     .forEach(id=>{$(id).addEventListener('input',render);$(id).addEventListener('change',render);});
 
   function build(){
@@ -673,7 +742,7 @@
       C(g.sy2(volLabel,trim(travel)));
       C(g.sy3(rateLabel,feed.toFixed(2)));
       C(g.sy5(Math.round(forceN),forceKgf.toFixed(1),pressBar.toFixed(1)));
-      C(g.sy4(dirName,dirLbl,eSign>0?'positive':'negative'));
+      C(g.sy4(dirName,dirLbl,eSign>0?g.sPos:g.sNeg));
       C(g.bar);
       if($('allowCold').checked) K(g.m302);
       K(rel?g.m83:g.m82);
@@ -701,6 +770,48 @@
       ];
       $('m92sub').textContent='M92 E'+r2(stepsPerMm);
       return {lines,moveCount,feed,timeMin,statMain,readout,dirLbl,dirName,sliderMax:maxMm3,rateNow:rateMm3min,rUnit};
+    }
+
+    // ----- TURN (plain motor revolutions / microsteps) -----
+    if(mode==='turn'){
+      const spr=Math.max(1,num('turnSpr',200)), micro=Math.max(1,num('turnMicro',16));
+      const uPerRev=spr*micro;                                   // microsteps per revolution
+      const amt=Math.max(0,num('turnAmt',10));
+      const revs=$('turnUnit').value==='steps' ? amt/uPerRev : amt;
+      const usteps=revs*uPerRev;
+      const rpm=Math.max(0.01,num('turnRpm',60));   // never emit F0 — Marlin needs a feedrate
+      const stepRate=rpm*uPerRev/60;                             // microsteps/s
+      const rateCls=stepRate>=10000?'crit':stepRate>=7000?'warn':'';
+      const eSign=turnDir==='ccw'?-1:1, dirName=turnDir==='ccw'?'CCW':'CW';
+      // M92 E=uPerRev makes 1 E unit = 1 revolution, so F is simply RPM
+      feed=rpm;
+      timeMin=rpm>0?revs/rpm:0;
+
+      C(g.bar); C(g.headT); W(g.warn); C(g.gen); C(g.bar);
+      C(g.tu1(spr,micro,uPerRev));
+      C(g.tu2(trim(revs),Math.round(usteps),dirName,eSign>0?g.sPos:g.sNeg));
+      C(g.tu3(r2(rpm),Math.round(stepRate)));
+      C(g.bar);
+      if($('allowCold').checked) K(g.m302);
+      K(rel?g.m83:g.m82);
+      K(g.m92t(uPerRev)); W(g.m92warn);
+      K(g.g92); C('');
+      C(g.turn);
+      K('G1 E'+trim6(revs*eSign)+' F'+r2(rpm)); moveCount++;
+      C('');
+      if($('wait').checked) K(g.m400);
+      if($('disable').checked) K(g.m84);
+      C(g.end);
+
+      statMain={key:'stTurnK', val:trim(revs), unit:s.turnRev};
+      readout=[
+        {k:s.roUrev, v:String(uPerRev)},
+        {k:s.roUtotal, v:String(Math.round(usteps))},
+        {k:s.roEval, v:'E'+trim6(revs*eSign)},
+        {k:s.roRate, v:Math.round(stepRate)+' '+s.uStep, cls:rateCls},
+        {k:s.roDir, v:dirName+' (E'+(eSign>0?'+':'−')+')'}
+      ];
+      return {lines,moveCount,feed,timeMin,statMain,readout};
     }
 
     // ----- CONT / CYCLE -----
@@ -738,9 +849,11 @@
     const mms=feed/60;
     $('feedHint').textContent='mm/min · ≈ '+mms.toFixed(2)+' mm/s';
     $('feedMms').textContent=mms.toFixed(2);
+    // in rotation mode E units are revolutions, so the monitor reads rev/s
+    $('feedUnit').textContent = mode==='turn' ? s.revPerSec : 'mm/s';
     $('extModeCmd').textContent=$('relative').checked?s.extRel:s.extAbs;
-    // feed field is derived in syringe mode -> reflect it (read-only feel)
-    $('feed').parentElement.style.display = mode==='syr' ? 'none' : '';
+    // feed field is derived in syringe and rotation modes -> reflect it (read-only feel)
+    $('feed').parentElement.style.display = (mode==='syr'||mode==='turn') ? 'none' : '';
 
     setTxt('stMainK', s[statMain.key]);
     $('stMain').innerHTML=statMain.val+'<small>'+statMain.unit+'</small>';
@@ -772,14 +885,16 @@
       box.step = sl.step;
       if(document.activeElement!==box) box.value=r2(valU);
       $('rateRange').textContent='(0 – '+r2(maxU)+' '+unitLbl(rUnit)+')';
+    } else if(mode==='turn'){
+      $('feedDir').textContent = turnDir==='ccw' ? '↺ CCW' : '↻ CW';
     } else {
       $('feedDir').textContent = mode==='cycle'?s.dirBoth : s.dirPush;
     }
-    mon.classList.toggle('rev', mode==='syr' && dir==='ccw');
+    mon.classList.toggle('rev', (mode==='syr'&&dir==='ccw')||(mode==='turn'&&turnDir==='ccw'));
     mon.classList.toggle('paused',feed<=0);
 
-    // readout box
-    const rb=$('syrReadout');
+    // readout box (each mode has its own container inside its field group)
+    const rb=$(mode==='turn'?'turnReadout':'syrReadout');
     if(readout){rb.style.display='';rb.innerHTML=readout.map(r=>'<div><span>'+r.k+'</span><b'+(r.cls?' class="'+r.cls+'"':'')+'>'+r.v+'</b></div>').join('');}
     else rb.style.display='none';
 
@@ -795,7 +910,7 @@
   }
 
   $('download').addEventListener('click',()=>{
-    let name=($('fname').value.trim()||(mode==='syr'?T[lang].syrName:T[lang].defaultName)).replace(/[^\w\-]+/g,'_');
+    let name=($('fname').value.trim()||nameFor(mode)).replace(/[^\w\-]+/g,'_');
     if(!/\.gcode$/i.test(name)) name+='.gcode';
     const blob=new Blob([rawGcode],{type:'text/plain'}), url=URL.createObjectURL(blob);
     const a=document.createElement('a');a.href=url;a.download=name;document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);
