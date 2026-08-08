@@ -444,7 +444,7 @@
       roArea:'Barrel area', roTravel:'Plunger travel', roRev:'Screw revolutions', roSteps:'E steps/mm',
       subDir:'Direction', dirCW:'↻ CW', dirCCW:'↺ CCW',
       lblCW:'↻ CW label', lblCCW:'↺ CCW label', lblPh:'e.g. dispense',
-      dirHint:'One direction dispenses, the other draws in — which is which depends on your wiring. Run a short move, watch the plunger, then label each direction. CW = positive E, CCW = negative E.',
+      dirHint:'One direction dispenses, the other draws in — which is which depends on your wiring. Run a short move, watch the plunger, then label each direction. CCW = positive E, CW = negative E.',
       roDir:'Active direction',
       maxStep:'Max step rate', maxStepHint:'steps/s — firmware / motor limit',
       subForce:'Plunger thrust',
@@ -498,7 +498,7 @@
       roArea:'Pole cylindra', roTravel:'Przesuw tłoka', roRev:'Obroty śruby', roSteps:'Kroki E/mm',
       subDir:'Kierunek', dirCW:'↻ CW', dirCCW:'↺ CCW',
       lblCW:'Etykieta ↻ CW', lblCCW:'Etykieta ↺ CCW', lblPh:'np. wytłaczanie',
-      dirHint:'Jeden kierunek wytłacza, drugi nabiera — który jest który, zależy od okablowania. Uruchom krótki ruch, zobacz jak przesuwa się tłok i przypisz etykiety. CW = E dodatnie, CCW = E ujemne.',
+      dirHint:'Jeden kierunek wytłacza, drugi nabiera — który jest który, zależy od okablowania. Uruchom krótki ruch, zobacz jak przesuwa się tłok i przypisz etykiety. CCW = E dodatnie, CW = E ujemne.',
       roDir:'Aktywny kierunek',
       maxStep:'Maks. kroki/s', maxStepHint:'kroków/s — limit firmware / silnika',
       subForce:'Siła pchania tłoka',
@@ -593,6 +593,8 @@
   const trim=n=>(Math.round(n*1000)/1000).toString();
   // finer rounding: one microstep is a tiny fraction of a revolution
   const trim6=n=>(Math.round(n*1e6)/1e6).toString();
+  // single source of truth for the direction convention: CCW = positive E, CW = negative E
+  const eSignFor=d=>d==='ccw'?1:-1;
   const r2=n=>Math.round(n*100)/100;
   function fmtTime(min){if(!isFinite(min)||min<=0)return '0:00';
     const t=Math.round(min*60),m=Math.floor(t/60),s=t%60;return m+':'+String(s).padStart(2,'0');}
@@ -673,7 +675,7 @@
     const match=SYR.find(s=>Math.abs(s.d-parseFloat($('dia').value))<1e-6);
     $('syrSel').value=match?String(match.d):'custom'; render();});
 
-  // direction toggle (CW = +E, CCW = -E)
+  // direction toggle (CCW = +E, CW = -E)
   $('dirSeg').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;
     dir=b.dataset.dir;[...$('dirSeg').children].forEach(x=>x.setAttribute('aria-pressed',x===b));render();});
 
@@ -732,7 +734,7 @@
       const rateLabel=r2(fromMm3(rateMm3min,rUnit))+' '+unitLbl(rUnit).replace('µ','u');
 
       // direction: CW = +E, CCW = -E. Sign the E move accordingly.
-      const eSign = dir==='ccw' ? -1 : 1;
+      const eSign = eSignFor(dir);
       const dirName = dir==='ccw' ? 'CCW' : 'CW';
       const dirLbl = (dir==='ccw' ? $('ccwLabel').value : $('cwLabel').value).trim();
       const eVal = travel*eSign;
@@ -782,7 +784,7 @@
       const rpm=Math.max(0.01,num('turnRpm',60));   // never emit F0 — Marlin needs a feedrate
       const stepRate=rpm*uPerRev/60;                             // microsteps/s
       const rateCls=stepRate>=10000?'crit':stepRate>=7000?'warn':'';
-      const eSign=turnDir==='ccw'?-1:1, dirName=turnDir==='ccw'?'CCW':'CW';
+      const eSign=eSignFor(turnDir), dirName=turnDir==='ccw'?'CCW':'CW';
       // M92 E=uPerRev makes 1 E unit = 1 revolution, so F is simply RPM
       feed=rpm;
       timeMin=rpm>0?revs/rpm:0;
@@ -890,7 +892,7 @@
     } else {
       $('feedDir').textContent = mode==='cycle'?s.dirBoth : s.dirPush;
     }
-    mon.classList.toggle('rev', (mode==='syr'&&dir==='ccw')||(mode==='turn'&&turnDir==='ccw'));
+    mon.classList.toggle('rev', (mode==='syr'&&eSignFor(dir)<0)||(mode==='turn'&&eSignFor(turnDir)<0));
     mon.classList.toggle('paused',feed<=0);
 
     // readout box (each mode has its own container inside its field group)
