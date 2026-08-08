@@ -316,7 +316,7 @@
                 <input type="number" id="torque" value="40" min="0" step="1">
                 <div class="hint" id="t_torqueHint"></div></div>
               <div class="field"><label id="t_screwEff"></label>
-                <input type="number" id="screwEff" value="25" min="1" max="100" step="1">
+                <input type="number" id="screwEff" value="40" min="1" max="100" step="1">
                 <div class="hint" id="t_screwEffHint"></div></div>
             </div>
             <div class="field"><label id="t_torqueUse"></label>
@@ -449,7 +449,7 @@
       maxStep:'Max step rate', maxStepHint:'steps/s — firmware / motor limit',
       subForce:'Plunger thrust',
       torque:'Motor holding torque', torqueHint:'N·cm — Ender 3 E-motor ≈ 40',
-      screwEff:'Screw efficiency', screwEffHint:'% — M4 rod ≈ 25 · Tr8 ≈ 40 · ball ≈ 90',
+      screwEff:'Screw efficiency', screwEffHint:'% — Tr8 ≈ 40 · M4 rod ≈ 25 · ball ≈ 90',
       torqueUse:'Usable torque', torqueUseHint:'% of holding torque — running & microstepping derate',
       forceFormula:'F ≈ 2π · torque · efficiency / lead. Rough estimate, not a safety rating — disposable Luer syringes typically start leaking around 3–10 bar.',
       roForce:'Max plunger force', roPress:'Max barrel pressure',
@@ -503,7 +503,7 @@
       maxStep:'Maks. kroki/s', maxStepHint:'kroków/s — limit firmware / silnika',
       subForce:'Siła pchania tłoka',
       torque:'Moment trzymający silnika', torqueHint:'N·cm — silnik E w Ender 3 ≈ 40',
-      screwEff:'Sprawność śruby', screwEffHint:'% — pręt M4 ≈ 25 · Tr8 ≈ 40 · kulowa ≈ 90',
+      screwEff:'Sprawność śruby', screwEffHint:'% — Tr8 ≈ 40 · pręt M4 ≈ 25 · kulowa ≈ 90',
       torqueUse:'Moment użyteczny', torqueUseHint:'% momentu trzymającego — zapas na ruch i mikrokroki',
       forceFormula:'F ≈ 2π · moment · sprawność / skok. Szacunek, nie limit bezpieczeństwa — jednorazowe strzykawki Luer zaczynają przeciekać zwykle przy 3–10 bar.',
       roForce:'Maks. siła tłoka', roPress:'Maks. ciśnienie w cylindrze',
@@ -723,7 +723,7 @@
       $('t_maxStepHint').textContent=Math.round(maxStepRate)+' '+s.uStep+' = '+Math.round(fullPerSec)+' '+s.full+' ≈ '+Math.round(rpmMax)+' '+s.rpm;
       // plunger thrust: screw turns motor torque into axial force (lead in m, torque in N·m)
       const torqueNm=Math.max(0,num('torque',40))/100;
-      const effi=Math.min(100,Math.max(1,num('screwEff',25)))/100;
+      const effi=Math.min(100,Math.max(1,num('screwEff',40)))/100;
       const tUse=torqueNm*Math.min(100,Math.max(1,num('torqueUse',70)))/100;
       const forceN=2*Math.PI*tUse*effi/(lead/1000);
       const forceKgf=forceN/9.80665;
