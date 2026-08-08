@@ -299,8 +299,8 @@
             <div class="subhead" id="t_subMech"></div>
             <div class="row2">
               <div class="field"><label id="t_lead"></label>
-                <input type="number" id="lead" value="0.7" min="0.1" step="0.1">
-                <div class="hint">mm/rev · M4 ≈ 0.7</div></div>
+                <input type="number" id="lead" value="2" min="0.1" step="0.1">
+                <div class="hint">mm/rev · Tr8x2 ≈ 2 · M4 ≈ 0.7</div></div>
               <div class="field"><label id="t_stepsRev"></label>
                 <input type="number" id="stepsRev" value="200" min="1" step="1"></div>
             </div>
@@ -705,7 +705,7 @@
       const volIn=Math.max(0,num('vol',5));
       const vol_mm3=volUnit==='ml'?volIn*1000:volIn; // µL = mm^3
       const travel=area>0?vol_mm3/area:0;            // mm plunger
-      const lead=Math.max(0.01,num('lead',0.7));
+      const lead=Math.max(0.01,num('lead',2));
       const spr=Math.max(1,num('stepsRev',200)), micro=Math.max(1,num('micro',16));
       const stepsPerMm=spr*micro/lead;
       const maxStepRate=Math.max(1,num('maxsteps',10000));   // steps/s (physical limit)
